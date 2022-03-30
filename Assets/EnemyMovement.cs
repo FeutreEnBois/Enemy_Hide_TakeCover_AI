@@ -4,8 +4,9 @@ using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class EnemyMoovement : MonoBehaviour
+public class EnemyMovement : MonoBehaviour
 {
+    public Transform Player;
     public LayerMask HidableLayers;
     public EnemyLineOfSightChecker LineOfSightChecker;
     public NavMeshAgent Agent;
@@ -14,6 +15,12 @@ public class EnemyMoovement : MonoBehaviour
     public float HideSensitivity = 0;
 
     public float maxDistance = 2f;
+    [Range(1f, 10f)]
+    public float MinDistanceBtwThePlayer = 5f;
+    [Range(0, 5f)]
+    public float MinObstacleHeight = 1.25f;
+    [Range(0.01f, 1f)]
+    public float UpdateFrequency = 0.25f;
     public float MultiplyNormalizedSampleDistance = 2f;
 
     private Coroutine MovementCoroutine;
@@ -35,6 +42,7 @@ public class EnemyMoovement : MonoBehaviour
 
         }
 
+        Player = target;
         MovementCoroutine = StartCoroutine(Hide(target));
     }
 
@@ -45,10 +53,12 @@ public class EnemyMoovement : MonoBehaviour
             StopCoroutine(MovementCoroutine);
 
         }
+        Player = null;
     }
 
     private IEnumerator Hide(Transform target)
     {
+        WaitForSeconds wait = new WaitForSeconds(UpdateFrequency);
         while (true)
         {
             for(int i = 0; i < Colliders.Length; i++)
@@ -58,6 +68,17 @@ public class EnemyMoovement : MonoBehaviour
 
             //check/store colliders (obstacles) touching or inside the sphere + inside HidableLayers
             int hits = Physics.OverlapSphereNonAlloc(Agent.transform.position, LineOfSightChecker.Collider.radius, Colliders, HidableLayers);
+
+            int hitReduction = 0;
+            for(int i = 0; i < hits; i++)
+            {
+                if(Vector3.Distance(Colliders[i].transform.position,target.position) < MinDistanceBtwThePlayer || Colliders[i].bounds.size.y < MinObstacleHeight)
+                {
+                    Colliders[i] = null;
+                    hitReduction++;
+                }
+            }
+            hits -= hitReduction;
 
             System.Array.Sort(Colliders, ColliderArraySortComparer);
             for (int i = 0; i < hits; i++)
@@ -102,11 +123,11 @@ public class EnemyMoovement : MonoBehaviour
                     Debug.LogError($"Unable to find NavMesh near object {Colliders[i].name} at {Colliders[i].transform.position}");
                 }
             }
-            yield return null;
+            yield return wait;
         }
     }
 
-    private int ColliderArraySortComparer(Collider A, Collider B)
+    public int ColliderArraySortComparer(Collider A, Collider B)
     {
         if(A == null && B != null)
         {
